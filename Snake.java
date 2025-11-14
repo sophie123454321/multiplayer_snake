@@ -32,7 +32,6 @@ public class Snake implements Serializable{
     
     private SquarePanel tailSP;
     private SquarePanel headSP = new SquarePanel(1,1,new Color(255,255,255));
-    private TailPanel tailP;
 
     private Color defaultColor;
     private Color actualColor; // if invis
@@ -206,13 +205,6 @@ public class Snake implements Serializable{
         this.player = player;
     }
 
-    public TailPanel getTailP() {
-        return tailP;
-    }
-
-    public void setTailP(TailPanel tailP) {
-        this.tailP = tailP;
-    }
 
     public SquarePanel getHeadSP() {
         return headSP;

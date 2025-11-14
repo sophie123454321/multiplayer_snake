@@ -1766,8 +1766,6 @@ public class SnakeRunner {
 
         } catch (UnsupportedAudioFileException | IOException | LineUnavailableException ex) {
             ex.printStackTrace();
-        } finally {
-            System.out.println("Attempted to load " + soundFile);
         }
 
         return clip;
