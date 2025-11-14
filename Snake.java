@@ -26,6 +26,8 @@ public class Snake implements Serializable{
     private int pastDirection;
     private int length;
     private int score;
+    private int wins;
+
 
     
     private SquarePanel tailSP;
@@ -37,6 +39,7 @@ public class Snake implements Serializable{
     private Color headColor;
 
     private int moveStep;
+
 
 
 
@@ -56,6 +59,7 @@ public class Snake implements Serializable{
         //currentlyInvis = false;
         scoreBoost = 1;
         moveStep = 0;
+        wins = 0;
         
         /*activeBoost = 0;
         currType = 0;
@@ -119,33 +123,8 @@ public class Snake implements Serializable{
         snakeMoved = s;
     }
 
-    public void startGameStats(){
-
-        direction = -1;
-        pastDirection = -1;
-        //switchDirections = false;
-        actualColor = defaultColor;
-        //currentlyInvis = false;
-        scoreBoost = 1;
-        head=new Point2D(startX,startY);
-        moveStep = 0;
-
-        //timeAlive = 0;
-        
-        /*activeBoost = 0;
-        currType = 0;
-        prevType = 0;
-        boost = new Boost(new Point (-1,-1), currType);
-        boostSpawnChance = 30;*/
-
-        score=0;
-        length=4;
-      
-
-
-
-    }
-
+   
+    
  
     
 

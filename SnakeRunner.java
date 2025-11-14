@@ -17,11 +17,14 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import javax.sound.sampled.*;
+import javax.swing.BoxLayout;
+import javax.swing.GrayFilter;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
@@ -33,6 +36,11 @@ public class SnakeRunner {
     // JFrame attributes
     private static JFrame frame;
     private static JPanel panelHome;
+    private static JPanel panelSettings;
+    private static JPanel settingsRow1;
+    private static JPanel settingsRow2;
+    private static JPanel settingsRow3;
+    private static JPanel settingsRow4;
     private static JPanel panelPlay;
     private static JPanel panelLost;
     private static JPanel panelScore;
@@ -42,6 +50,19 @@ public class SnakeRunner {
     private static JButton buttonMusic;
     private static JButton buttonKeySounds;
     private static JButton buttonClose;
+    private static JButton buttonSettings;
+
+    private static JButton buttonAppleSpawn;
+    private static JButton buttonToggleBoosts;
+    private static JButton buttonResetStats;
+    private static JButton buttonSpeed;
+    private static JButton buttonSlowness;
+    private static JButton buttonInvis;
+    private static JButton buttonInputFlip;
+    private static JButton buttonResetBoard;
+    private static JButton buttonBack;
+
+
     //private static JButton buttonSave;
     //private static JButton buttonLoad;
     private static JLabel player1ScoreLabel;
@@ -57,15 +78,26 @@ public class SnakeRunner {
     private static ImageIcon resetGame; // resets the game
     private static ImageIcon loadSave; // loads the previous savefile
     private static ImageIcon closeWindow; // closes window
+    private static ImageIcon settings; // toggles settings menu
+    private static ImageIcon toggleAppleSpawn; // toggles continuous apple spawn
+    private static ImageIcon oneApple;
+    //private static ImageIcon toggleAppleSpawnGray;
+    private static ImageIcon back;
     private static ImageIcon boostExplanation; // explains boosts
     private static ImageIcon f; // fruit 
     private static ImageIcon next; // next boost 
+    private static ImageIcon nextGray;
     private static ImageIcon b0; // reset stats
+    private static ImageIcon b0Gray;
     private static ImageIcon b1; // speed
+    private static ImageIcon b1Gray;
     private static ImageIcon X2; // x2 fruit multiplier
     private static ImageIcon b2; // slowness
+    private static ImageIcon b2Gray;
     private static ImageIcon b3; // invisibility
+    private static ImageIcon b3Gray;
     private static ImageIcon b4; // direction switch
+    private static ImageIcon b4Gray;
     private static ImageIcon X5; // x5 fruit multiplier
     private static ImageIcon yesMusic; // bg music is on
     private static ImageIcon noMusic; // bg music is off
@@ -80,8 +112,6 @@ public class SnakeRunner {
     private static Clip fruitEaten;
     private static Clip bgMusic; 
     private static Clip keyPress;
-    private static boolean playMusic;
-    private static boolean playKeySounds;
 
 
     //private static final String SAVE_FILE = "snake_game_save.dat";
@@ -97,22 +127,31 @@ public class SnakeRunner {
     private static final int gridY = 15;
 
 
-    private static Point fruit;
+    //private static Point fruit;
 
     private static int[] boostArr; // 3 x 1, index 0 = speed, index 1 = invis, index 2 = direction switch
     private static final int boostSpawnChance = 100; 
-            
+    private static final int fruitSpawnChance = 75;
+
+    private static boolean[] settingsArr; // 9 x 1, index 0 = key sounds, 1 = music, 2 = apple spawn, 
+    // 3 reset stats, 4 = speed, 5 = slowness, 6 = invis, 7 = input flip, 8 = resetBoard)
+    private static boolean settingsOpen;
+    private static boolean winnerAlreadyDecided; // only used to make sure wins aren't double-counted
 
     private static volatile boolean cont;
+    private static Snake loserSnake;
 
     private static volatile GridSquare[][] grid;
     public static SquarePanel[][] gridPanels;
 
+    private static int snake1Wins;
+    private static int snake2Wins;
      
     private static final int winBonus = 20;
     
     // graphics logic
     private static final Dimension panelDimensions = new Dimension(600,50);
+    private static final Dimension largeButtonDimension = new Dimension(100,100);
     private static final Dimension smallButtonDimensions = new Dimension(50,50);
     private static final Dimension frameDimensions = new Dimension(600,700);
     private static final Color defaultSnake1 = new Color(30,100,135);
@@ -168,25 +207,41 @@ public class SnakeRunner {
     }
 */
     public static void resetVariables(){
+        winnerAlreadyDecided = false;
         gameStarted = GameVar.gameStarted;
         boostArr = new int[3];
         snakeSpeed = GameVar.snakeSpeed;
         steps = (int)(GameVar.animStepSpeed*GameVar.timerDelay/snakeSpeed);
-        //boostArr[1] = 1; //debug statements
-        //boostArr[2] = 1;
-        fruit=new Point((int)(gridX/2),(int)(gridY/2));
+
+        snake1 = new Snake(1,5,defaultSnake1,Player.PLAYER_1);
+        snake2 = new Snake(1, 10, defaultSnake2,Player.PLAYER_2);       
+
+        // creating the grid
+        grid = new GridSquare[gridY][gridX];
+        for (int y = 0; y < gridY; y++){
+            for (int x=0; x<gridX;x++){
+                grid[y][x]=new GridSquare(x,y);
+            }
+        }
+        grid[snake1.getStartY()][snake1.getStartX()].setOccupyingSnake(snake1);
+        grid[snake2.getStartY()][snake2.getStartX()].setOccupyingSnake(snake2);
+        grid[(int)gridY/2][(int)gridX/2].setFruit(true);
+
+        settingsOpen = false;
 
     }
 
     // the game can only be initialized by classes in the same package or subclass
     protected static void initialize(){
 
-        snakeSpeed = GameVar.snakeSpeed;
-
         resetVariables();
+        snake1Wins = 0;
+        snake2Wins = 0;
+        settingsArr = new boolean[9];
+        for (int i = 0; i < settingsArr.length; i++)
+            settingsArr[i] = true;
         
-        playMusic = true;
-        playKeySounds = true;
+       
         loadSounds();
 
         // the first sound in the game never plays correctly, so the code plays a buffer sound beforehand
@@ -202,15 +257,12 @@ public class SnakeRunner {
         frame.setLocationRelativeTo(null);
         frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         
-        // custom close action
+        // close window
         frame.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                
                 buttonClick.setFramePosition(0);
                 buttonClick.start();
-                
-                // exit
                 System.exit(0);
             }
         });
@@ -220,6 +272,15 @@ public class SnakeRunner {
         bgMusic.setFramePosition(0);
         bgMusic.start();
         bgMusic.loop(Clip.LOOP_CONTINUOUSLY);
+
+        // adjust timer delay for speed/slowness boosts
+        gameTimer = new Timer(GameVar.timerDelay, new ActionListener(){
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                runGame();
+            }
+        });
+        gameTimer.setInitialDelay(0);
 
 
         // listens for directional inputs
@@ -231,254 +292,201 @@ public class SnakeRunner {
             @Override
             public void keyPressed(KeyEvent e) { // key inputs : w/a/s/d for player 1, arrow keys for player 2
                 
-                if (!cont && e.getKeyCode() == KeyEvent.VK_ESCAPE){ // either on the menu screen or the lose screen
+                if (!cont && e.getKeyCode() == KeyEvent.VK_ESCAPE){ // either on the menu screen, lose screen, or settings
                     new Thread(() -> {
                         buttonClick.setFramePosition(0);
                         buttonClick.start();
                     }).start();
                     System.exit(0);
                 }
+                if (!settingsOpen){
+                    if(!cont && !gameStarted && e.getKeyCode() == KeyEvent.VK_SPACE){ // on the home screen: starts the game
 
-                if(!cont && !gameStarted && e.getKeyCode() == KeyEvent.VK_SPACE){ // on the home screen: starts the game
+                        new Thread(() -> {
+                            buttonClick.setFramePosition(0);
+                            buttonClick.start();
+                        }).start();
 
-                    new Thread(() -> {
-                        buttonClick.setFramePosition(0);
-                        buttonClick.start();
-                    }).start();
+                        cont=true;
 
-                    snake1 = new Snake(1,5,defaultSnake1,Player.PLAYER_1);
-                    snake2 = new Snake(1, 10, defaultSnake2,Player.PLAYER_2);       
-                    
-
-                    // creating the grid
-                    grid = new GridSquare[gridY][gridX];
-                    for (int y = 0; y < gridY; y++){
-                        for (int x=0; x<gridX;x++){
-                            grid[y][x]=new GridSquare(x,y);
-                        }
+                        initGridPanels();
+                        renderGrid();
+                        initFrame();
                     }
-
-                    grid[snake1.getStartY()][snake1.getStartX()].setOccupyingSnake(snake1);
-                    grid[snake2.getStartY()][snake2.getStartX()].setOccupyingSnake(snake2);
-
-                    cont=true;
-
-                    initGridPanels();
-                    renderGrid();
-                    initFrame();
-                }
-                
-                if (!gameStarted && cont){ // start the timer
-                    System.out.println("timer is starting. run game.");
-                    gameStarted = true;
-
-                    /*Thread gameThread = new Thread(() -> {
-                        final int frameTime = 16; // target ~60 FPS (adjust as needed)
-
-                        while (cont) {
-                            long start = System.nanoTime();
-
-                            runGame(); // handles both logic + grid update
-
-                            long elapsed = (System.nanoTime() - start) / 1000000;
-                            long sleep = Math.max(0, frameTime - elapsed);
-                            try {
-                                Thread.sleep(sleep);
-                            } catch (InterruptedException ex) {
+                    
+                    if (!gameStarted && cont){ // start the timer
+                        System.out.println("timer is starting. run game.");
+                        gameStarted = true;
+                        gameTimer.start();
+                    }
+                    if (gameStarted){
+                        int direction1 = -1;
+                        int direction2 = -1;
+                        switch(e.getKeyCode()){
+                            case KeyEvent.VK_SPACE:
+                                if (!cont){ // on the loseScreen
+                                    System.out.println("Spacebar pressed. Reset game.");
+                                    new Thread(() -> {
+                                        buttonClick.setFramePosition(0);
+                                        buttonClick.start();
+                                    }).start();
+                                    resetGame();
+                                }
+                                break;
+                            
+                            case KeyEvent.VK_W: if (cont && snake1.getSnakeMoved() && snake1.getDirection()!=0 && snake1.getDirection()!=2){
+                                if (boostArr[2] == 1){
+                                    direction1 = 2;    
+                                } else {direction1=0;}
+                                snake1.setDirection(direction1);
+                                
+                                if (settingsArr[0]){
+                                    new Thread(() -> {
+                                        keyPress.setFramePosition(0);
+                                        keyPress.start();
+                                    }).start();
+                                }
+                                
+                                snake1.setSnakeMoved(false);
+                                //System.out.println("up");                
                                 break;
                             }
-                        }
+                            break;
+                            case KeyEvent.VK_D: if (cont && snake1.getSnakeMoved() && snake1.getDirection()!=1 && snake1.getDirection()!=3){
+                                if (boostArr[2] == 1){
+                                    direction1 = 3;    
+                                } else {direction1=1;}
+                                
+                                snake1.setDirection(direction1);
+                                
+                                if (settingsArr[0]){
+                                    new Thread(() -> {
+                                        keyPress.setFramePosition(0);
+                                        keyPress.start();
+                                    }).start();
+                                }
+                                snake1.setSnakeMoved(false);
 
-                        
-                    });
+                            
 
-                    gameThread.setDaemon(true); // optional, but good practice
-                    gameThread.start();*/
-
-
-
-
-                    
-                    // adjust timer delay for speed/slowness boosts
-                    gameTimer = new Timer(GameVar.timerDelay, new ActionListener(){
-
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            runGame();
-
-                        }
-                    });
-                    gameTimer.setInitialDelay(0);
-                    gameTimer.start();
-                }
-                if (gameStarted){
-                    int direction1 = -1;
-                    int direction2 = -1;
-                    switch(e.getKeyCode()){
-                        case KeyEvent.VK_SPACE:
-                            if (!cont){ // on the loseScreen
-                                System.out.println("Spacebar pressed. Reset game.");
-                                new Thread(() -> {
-                                    buttonClick.setFramePosition(0);
-                                    buttonClick.start();
-                                }).start();
-                                resetGame();
+                                break;
                             }
                             break;
-                        
-                        case KeyEvent.VK_W: if (cont && snake1.getSnakeMoved() && snake1.getDirection()!=0 && snake1.getDirection()!=2){
-                            if (boostArr[2] == 1){
-                                direction1 = 2;    
-                            } else {direction1=0;}
-                            snake1.setDirection(direction1);
-                            
-                            if (playKeySounds){
-                                new Thread(() -> {
-                                    keyPress.setFramePosition(0);
-                                    keyPress.start();
-                                }).start();
-                            }
-                            
-                            snake1.setSnakeMoved(false);
-                            //System.out.println("up");                
-                            break;
-                        }
-                        break;
-                        case KeyEvent.VK_D: if (cont && snake1.getSnakeMoved() && snake1.getDirection()!=1 && snake1.getDirection()!=3){
-                            if (boostArr[2] == 1){
-                                direction1 = 3;    
-                            } else {direction1=1;}
-                            
-                            snake1.setDirection(direction1);
-                            
-                            if (playKeySounds){
-                                new Thread(() -> {
-                                    keyPress.setFramePosition(0);
-                                    keyPress.start();
-                                }).start();
-                            }
-                            snake1.setSnakeMoved(false);
-
-                        
-
-                            break;
-                        }
-                        break;
-                        case KeyEvent.VK_S: if (cont && snake1.getSnakeMoved() && snake1.getDirection()!=0 && snake1.getDirection()!=2){
-                            if (boostArr[2] == 1){
-                                direction1 = 0;    
-                            } else {direction1=2;}
-                            
-                            snake1.setDirection(direction1);
-                            if (playKeySounds){
-                                new Thread(() -> {
-                                    keyPress.setFramePosition(0);
-                                    keyPress.start();
-                                }).start();
-                            }
-                            snake1.setSnakeMoved(false);
-
-                        
-                            
-                            break;
-                        }
-                        break;
-                        case KeyEvent.VK_A: if (cont && snake1.getSnakeMoved() && snake1.getDirection()!=1 && snake1.getDirection()!=3){
-                            if (boostArr[2] == 1){
-                                direction1 = 1;    
-                            } else {direction1=3;}
-                            
-                            snake1.setDirection(direction1);
-                            
-                            if (playKeySounds){
-                                new Thread(() -> {
-                                    keyPress.setFramePosition(0);
-                                    keyPress.start();
-                                }).start();
-                            }
-                            snake1.setSnakeMoved(false);
-                        
-                            break;
-                        }
-                        break;
-
-                        case KeyEvent.VK_UP: if (cont && snake2.getSnakeMoved() && snake2.getDirection()!=0 && snake2.getDirection()!=2){
-                            if (boostArr[2] == 1){
-                                direction2 = 2;    
-                            } else {direction2=0;}
-                            snake2.setDirection(direction2);
+                            case KeyEvent.VK_S: if (cont && snake1.getSnakeMoved() && snake1.getDirection()!=0 && snake1.getDirection()!=2){
+                                if (boostArr[2] == 1){
+                                    direction1 = 0;    
+                                } else {direction1=2;}
+                                
+                                snake1.setDirection(direction1);
+                                if (settingsArr[0]){
+                                    new Thread(() -> {
+                                        keyPress.setFramePosition(0);
+                                        keyPress.start();
+                                    }).start();
+                                }
+                                snake1.setSnakeMoved(false);
 
                             
-                            if (playKeySounds){
-                                new Thread(() -> {
-                                    keyPress.setFramePosition(0);
-                                    keyPress.start();
-                                }).start();
+                                
+                                break;
                             }
-                            snake2.setSnakeMoved(false);
-                        
                             break;
+                            case KeyEvent.VK_A: if (cont && snake1.getSnakeMoved() && snake1.getDirection()!=1 && snake1.getDirection()!=3){
+                                if (boostArr[2] == 1){
+                                    direction1 = 1;    
+                                } else {direction1=3;}
+                                
+                                snake1.setDirection(direction1);
+                                
+                                if (settingsArr[0]){
+                                    new Thread(() -> {
+                                        keyPress.setFramePosition(0);
+                                        keyPress.start();
+                                    }).start();
+                                }
+                                snake1.setSnakeMoved(false);
                             
-                        }
-                        break;
-                        case KeyEvent.VK_RIGHT: if (cont && snake2.getSnakeMoved() && snake2.getDirection()!=1 && snake2.getDirection()!=3){
-                            if (boostArr[2] == 1){
-                                direction2 = 3;    
-                            } else {direction2=1;}
+                                break;
+                            }
+                            break;
 
-                            snake2.setDirection(direction2);
-                            
-                            if (playKeySounds){
-                                new Thread(() -> {
-                                    keyPress.setFramePosition(0);
-                                    keyPress.start();
-                                }).start();
-                            }
-                            snake2.setSnakeMoved(false);
+                            case KeyEvent.VK_UP: if (cont && snake2.getSnakeMoved() && snake2.getDirection()!=0 && snake2.getDirection()!=2){
+                                if (boostArr[2] == 1){
+                                    direction2 = 2;    
+                                } else {direction2=0;}
+                                snake2.setDirection(direction2);
 
-                            break;
-                        }
-                        break;
-                        case KeyEvent.VK_DOWN: if (cont && snake2.getSnakeMoved() && snake2.getDirection()!=0 && snake2.getDirection()!=2){
-                            if (boostArr[2] == 1){
-                                direction2 = 0;    
-                            } else {direction2=2;}
+                                
+                                if (settingsArr[0]){
+                                    new Thread(() -> {
+                                        keyPress.setFramePosition(0);
+                                        keyPress.start();
+                                    }).start();
+                                }
+                                snake2.setSnakeMoved(false);
                             
-                            snake2.setDirection(direction2);
-                            
-                            if (playKeySounds){
-                                new Thread(() -> {
-                                    keyPress.setFramePosition(0);
-                                    keyPress.start();
-                                }).start();
+                                break;
+                                
                             }
-                            snake2.setSnakeMoved(false);
-                        
-                            
                             break;
-                        }
-                        break;
-                        case KeyEvent.VK_LEFT: if (cont && snake2.getSnakeMoved() && snake2.getDirection()!=1 && snake2.getDirection()!=3){
-                            if (boostArr[2] == 1){
-                                direction2 = 1;    
-                            } else {direction2=3;}
+                            case KeyEvent.VK_RIGHT: if (cont && snake2.getSnakeMoved() && snake2.getDirection()!=1 && snake2.getDirection()!=3){
+                                if (boostArr[2] == 1){
+                                    direction2 = 3;    
+                                } else {direction2=1;}
 
-                            snake2.setDirection(direction2);                      
-                            
-                            
-                            if (playKeySounds){
-                                new Thread(() -> {
-                                    keyPress.setFramePosition(0);
-                                    keyPress.start();
-                                }).start();
+                                snake2.setDirection(direction2);
+                                
+                                if (settingsArr[0]){
+                                    new Thread(() -> {
+                                        keyPress.setFramePosition(0);
+                                        keyPress.start();
+                                    }).start();
+                                }
+                                snake2.setSnakeMoved(false);
+
+                                break;
                             }
-                            snake2.setSnakeMoved(false);   
+                            break;
+                            case KeyEvent.VK_DOWN: if (cont && snake2.getSnakeMoved() && snake2.getDirection()!=0 && snake2.getDirection()!=2){
+                                if (boostArr[2] == 1){
+                                    direction2 = 0;    
+                                } else {direction2=2;}
+                                
+                                snake2.setDirection(direction2);
+                                
+                                if (settingsArr[0]){
+                                    new Thread(() -> {
+                                        keyPress.setFramePosition(0);
+                                        keyPress.start();
+                                    }).start();
+                                }
+                                snake2.setSnakeMoved(false);
+                            
+                                
+                                break;
+                            }
+                            break;
+                            case KeyEvent.VK_LEFT: if (cont && snake2.getSnakeMoved() && snake2.getDirection()!=1 && snake2.getDirection()!=3){
+                                if (boostArr[2] == 1){
+                                    direction2 = 1;    
+                                } else {direction2=3;}
+
+                                snake2.setDirection(direction2);                      
+                                
+                                
+                                if (settingsArr[0]){
+                                    new Thread(() -> {
+                                        keyPress.setFramePosition(0);
+                                        keyPress.start();
+                                    }).start();
+                                }
+                                snake2.setSnakeMoved(false);   
+                                break;
+                            }
                             break;
                         }
-                        break;
                     }
                 }
- 
             }
             @Override
             public void keyReleased(KeyEvent e) {}
@@ -490,8 +498,10 @@ public class SnakeRunner {
 
         // creating panelHome
         panelHome = new JPanel();
+
+
         buttonPlay = new JButton(playGame);
-        buttonPlay.setPreferredSize(new Dimension(100,100));
+        buttonPlay.setPreferredSize(largeButtonDimension);
         buttonPlay.setFocusable(false);
         
         // when buttonPlay is pressed, set cont to true and call render()
@@ -501,21 +511,6 @@ public class SnakeRunner {
                
                 buttonClick.setFramePosition(0);
                 buttonClick.start();
-
-                snake1 = new Snake(1,5,defaultSnake1,Player.PLAYER_1);
-                snake2 = new Snake(1, 10, defaultSnake2,Player.PLAYER_2);       
-                
-
-                // creating the grid
-                grid = new GridSquare[gridY][gridX];
-                for (int y = 0; y < gridY; y++){
-                    for (int x=0; x<gridX;x++){
-                        grid[y][x]=new GridSquare(x,y);
-                    }
-                }
-
-                grid[snake1.getStartY()][snake1.getStartX()].setOccupyingSnake(snake1);
-                grid[snake2.getStartY()][snake2.getStartX()].setOccupyingSnake(snake2);
 
                 cont=true;
 
@@ -527,67 +522,32 @@ public class SnakeRunner {
             }
         });
 
-         // background music toggle
-         buttonMusic = new JButton(yesMusic);
-         buttonMusic.setPreferredSize(new Dimension(100,100));
-         buttonMusic.setFocusable(false);
-         
-         buttonMusic.addActionListener(new ActionListener(){
-             @Override
-             public void actionPerformed(ActionEvent e){
-             
-                 buttonClick.setFramePosition(0);
-                 buttonClick.start();
-                
-                 if (playMusic){
-                     playMusic = false;
-                     buttonMusic.setIcon(noMusic);
-                     bgMusic.stop();
-                 
-                 } else {
-                     
-                     playMusic = true;
-                     buttonMusic.setIcon(yesMusic);
-                     bgMusic.setFramePosition(0);
-                     bgMusic.start();
-                     bgMusic.loop(Clip.LOOP_CONTINUOUSLY);
-                 
-                 }
-             }
-         });
-         
-         // keyboard sounds toggle
-         buttonKeySounds = new JButton(keySoundsOn);
-         buttonKeySounds.setPreferredSize(new Dimension(100,100));
-         buttonKeySounds.setFocusable(false);
-         
-         buttonKeySounds.addActionListener(new ActionListener(){
-             @Override
-             public void actionPerformed(ActionEvent e){
-             
-                 buttonClick.setFramePosition(0);
-                 buttonClick.start();
-                
-                 if (playKeySounds){
-                     playKeySounds = false;
-                     buttonKeySounds.setIcon(keySoundsOff);
-                 
-                 } else {
-                     
-                     playKeySounds = true;
-                     buttonKeySounds.setIcon(keySoundsOn);
-                                     
-                 }
-             }
-         });
 
-         // close button
-        buttonClose = new JButton(closeWindow);
-        buttonClose.setPreferredSize(new Dimension(100,100));
-        buttonClose.setFocusable(false);
-        buttonClose.addActionListener(new ActionListener(){
+        // toggle settings
+        buttonSettings = new JButton(settings);
+        buttonSettings.setPreferredSize(largeButtonDimension);
+        buttonSettings.setFocusable(false);
+        buttonSettings.addActionListener(new ActionListener(){
             @Override
             public void actionPerformed(ActionEvent e){
+            
+                buttonClick.setFramePosition(0);
+                buttonClick.start();
+                openSettings();
+                settingsOpen = true;
+            }
+        });
+         
+
+
+
+        // close button
+        buttonClose = new JButton(closeWindow);
+        buttonClose.setPreferredSize(largeButtonDimension);
+        buttonClose.setFocusable(false);
+        buttonClose.addActionListener(new ActionListener(){
+        @Override
+        public void actionPerformed(ActionEvent e){
                 buttonClick.setFramePosition(0);
                 buttonClick.start();
                 System.exit(0);
@@ -596,7 +556,7 @@ public class SnakeRunner {
 
         /*// load previous game button
         buttonLoad = new JButton(loadSave);
-        buttonLoad.setPreferredSize(new Dimension(100,100));
+        buttonLoad.setPreferredSize(largeButtonDimension);
         buttonLoad.setFocusable(false);
         buttonLoad.addActionListener(new ActionListener(){
             @Override
@@ -614,7 +574,7 @@ public class SnakeRunner {
 
         // button to save the game state
         buttonSave = new JButton("Save and exit");
-        buttonSave.setPreferredSize(new Dimension(100,100));
+        buttonSave.setPreferredSize(largeButtonDimension);
         buttonSave.setFocusable(false);
         buttonSave.addActionListener(new ActionListener(){
             @Override
@@ -639,23 +599,57 @@ public class SnakeRunner {
             
         });
 
-        frame.add(panelHome,BorderLayout.NORTH);
-        frame.add(new JLabel(boostExplanation)); // adds boost explanation image
-
         panelHome.add(buttonPlay);
-        panelHome.add(buttonMusic);
-        panelHome.add(buttonKeySounds);
+        panelHome.add(buttonSettings);
         panelHome.add(buttonClose);
         //panelHome.add(buttonLoad);
 
-        frame.setVisible(true);
 
+        frame.add(panelHome,BorderLayout.NORTH);
+        frame.add(new JLabel(boostExplanation)); // adds boost explanation image
+
+        frame.setVisible(true);
+        createSettingsButtons();
         createPanels();
 
     }
 
     // initializes all the JPanels
     public static void createPanels(){
+
+        // creating panelSettings
+        panelSettings = new JPanel();
+        panelSettings.setLayout(new BoxLayout(panelSettings, BoxLayout.Y_AXIS)); // 4 rows: Settings 1, settings 2, settings 3, W/L ratio
+        
+        settingsRow1 = new JPanel();
+        settingsRow1.add(buttonBack);
+        settingsRow1.add(buttonMusic);
+        settingsRow1.add(buttonKeySounds);
+        settingsRow1.add(buttonAppleSpawn);
+
+        settingsRow2 = new JPanel();
+        settingsRow2.add(buttonSpeed);
+        settingsRow2.add(buttonSlowness);
+        settingsRow2.add(buttonInvis);
+
+        settingsRow3 = new JPanel();
+        settingsRow3.add(buttonResetStats);
+        settingsRow3.add(buttonInputFlip);
+        settingsRow3.add(buttonResetBoard);
+
+        settingsRow4 = new JPanel();
+        settingsRow4.add(new JLabel("Wins  |  "));
+        settingsRow4.add(new JLabel("Player 1: " + snake1Wins));
+        settingsRow4.add(new JLabel("    Player 2: " + snake2Wins));
+
+
+        panelSettings.add(settingsRow1);
+        panelSettings.add(settingsRow2);
+        panelSettings.add(settingsRow3);
+        panelSettings.add(settingsRow4);
+       // panelSettings.add(new JLabel(boostExplanation));
+
+
 
         // creating panelLost
         panelLost = new JPanel();
@@ -686,6 +680,254 @@ public class SnakeRunner {
         
 
     }
+
+
+
+    public static void createSettingsButtons(){
+
+        // keyboard sounds toggle
+        buttonKeySounds = new JButton(keySoundsOn);
+        buttonKeySounds.setPreferredSize(largeButtonDimension);
+        buttonKeySounds.setFocusable(false);  
+        buttonKeySounds.addActionListener(new ActionListener(){
+            @Override
+            public void actionPerformed(ActionEvent e){
+            
+                buttonClick.setFramePosition(0);
+                buttonClick.start();
+                
+                settingsArr[0] = settingsArr[0] == false;
+            
+                if (!settingsArr[0]){
+                    buttonKeySounds.setIcon(keySoundsOff);
+                } else {
+                    buttonKeySounds.setIcon(keySoundsOn);        
+                }
+
+                buttonKeySounds.revalidate();
+                buttonKeySounds.repaint();
+            }
+        });
+        
+        // background music toggle
+        buttonMusic = new JButton(yesMusic);
+        buttonMusic.setPreferredSize(largeButtonDimension);
+        buttonMusic.setFocusable(false);
+        buttonMusic.addActionListener(new ActionListener(){
+            @Override
+            public void actionPerformed(ActionEvent e){
+            
+                buttonClick.setFramePosition(0);
+                buttonClick.start();
+                
+                settingsArr[1] = settingsArr[1] == false;
+                if (!settingsArr[1]){
+                    buttonMusic.setIcon(noMusic);
+                    bgMusic.stop();
+                } else {
+                    buttonMusic.setIcon(yesMusic);
+                    bgMusic.setFramePosition(0);
+                    bgMusic.start();
+                    bgMusic.loop(Clip.LOOP_CONTINUOUSLY);
+                
+                }
+            }
+        });
+        
+
+
+        buttonAppleSpawn = new JButton(toggleAppleSpawn);
+        buttonAppleSpawn.setPreferredSize(largeButtonDimension);
+        buttonAppleSpawn.setFocusable(false);
+        buttonAppleSpawn.addActionListener(new ActionListener(){
+            @Override
+            public void actionPerformed(ActionEvent e){
+            
+                buttonClick.setFramePosition(0);
+                buttonClick.start();
+                settingsArr[2] = settingsArr[2]==false;
+                if (settingsArr[2]){
+                    buttonAppleSpawn.setIcon(toggleAppleSpawn);
+                } else {
+                    buttonAppleSpawn.setIcon(oneApple);
+                }
+                buttonAppleSpawn.revalidate();
+                buttonAppleSpawn.repaint();
+                
+            }
+        });
+         
+        
+
+        //buttonToggleBoosts  = new JButton()
+
+        buttonResetStats = new JButton(b0);
+        buttonResetStats.setPreferredSize(largeButtonDimension);
+        buttonResetStats.setFocusable(false);
+        buttonResetStats.addActionListener(new ActionListener(){
+            @Override
+            public void actionPerformed(ActionEvent e){
+            
+                buttonClick.setFramePosition(0);
+                buttonClick.start();
+                settingsArr[3] = settingsArr[3]==false;
+                if (settingsArr[3]){
+                    buttonResetStats.setIcon(b0);
+                } else {
+                    buttonResetStats.setIcon(b0Gray);
+                }
+                buttonResetStats.revalidate();
+                buttonResetStats.repaint();
+            
+                
+            }
+        });
+
+
+
+        buttonSpeed = new JButton(b1);
+        buttonSpeed.setPreferredSize(largeButtonDimension);
+        buttonSpeed.setFocusable(false);
+        buttonSpeed.addActionListener(new ActionListener(){
+            @Override
+            public void actionPerformed(ActionEvent e){
+            
+                buttonClick.setFramePosition(0);
+                buttonClick.start();
+                settingsArr[4] = settingsArr[4]==false;
+                if (settingsArr[4]){
+                    buttonSpeed.setIcon(b1);
+                } else {
+                    buttonSpeed.setIcon(b1Gray);
+                }
+                buttonSpeed.revalidate();
+                buttonSpeed.repaint();
+            
+                
+            }
+        });
+
+        buttonSlowness = new JButton(b2);
+        buttonSlowness.setPreferredSize(largeButtonDimension);
+        buttonSlowness.setFocusable(false);
+        buttonSlowness.addActionListener(new ActionListener(){
+            @Override
+            public void actionPerformed(ActionEvent e){
+            
+                buttonClick.setFramePosition(0);
+                buttonClick.start();
+                settingsArr[5] = settingsArr[5]==false;
+                if (settingsArr[5]){
+                    buttonSlowness.setIcon(b2);
+                } else {
+                    buttonSlowness.setIcon(b2Gray);
+                }
+                buttonSlowness.revalidate();
+                buttonSlowness.repaint();
+            
+                
+            }
+        });
+
+        buttonInvis = new JButton(b3);
+        buttonInvis.setPreferredSize(largeButtonDimension);
+        buttonInvis.setFocusable(false);
+        buttonInvis.addActionListener(new ActionListener(){
+            @Override
+            public void actionPerformed(ActionEvent e){
+            
+                buttonClick.setFramePosition(0);
+                buttonClick.start();
+                settingsArr[6] = settingsArr[6]==false;
+                if (settingsArr[6]){
+                    buttonInvis.setIcon(b3);
+                } else {
+                    buttonInvis.setIcon(b3Gray);
+                }
+                buttonInvis.revalidate();
+                buttonInvis.repaint();
+            
+                
+            }
+        });
+
+        buttonInputFlip = new JButton(b4);
+        buttonInputFlip.setPreferredSize(largeButtonDimension);
+        buttonInputFlip.setFocusable(false);
+        buttonInputFlip.addActionListener(new ActionListener(){
+            @Override
+            public void actionPerformed(ActionEvent e){
+            
+                buttonClick.setFramePosition(0);
+                buttonClick.start();
+                settingsArr[7] = settingsArr[7]==false;
+                if (settingsArr[7]){
+                    buttonInputFlip.setIcon(b4);
+                } else {
+                    buttonInputFlip.setIcon(b4Gray);
+                }
+                buttonInputFlip.revalidate();
+                buttonInputFlip.repaint();
+            
+                
+            }
+        });
+
+        buttonResetBoard = new JButton(next);
+        buttonResetBoard.setPreferredSize(largeButtonDimension);
+        buttonResetBoard.setFocusable(false);
+        buttonResetBoard.addActionListener(new ActionListener(){
+            @Override
+            public void actionPerformed(ActionEvent e){
+            
+                buttonClick.setFramePosition(0);
+                buttonClick.start();
+                settingsArr[8] = settingsArr[8]==false;
+                if (settingsArr[8]){
+                    buttonResetBoard.setIcon(next);
+                } else {
+                    buttonResetBoard.setIcon(nextGray);
+                }
+                buttonResetBoard.revalidate();
+                buttonResetBoard.repaint();
+            
+                
+            }
+        });
+
+
+
+        // closes settings
+        // button sends you to home or the previous panel?
+        buttonBack = new JButton(back);
+        buttonBack.setPreferredSize(largeButtonDimension);
+        buttonBack.setFocusable(false);
+        buttonBack.addActionListener(new ActionListener(){
+            @Override
+            public void actionPerformed(ActionEvent e){
+            
+                buttonClick.setFramePosition(0);
+                buttonClick.start();
+                settingsOpen = false;
+                frame.getContentPane().remove(panelSettings);
+
+                if (!gameStarted){ // on the home screen (cont = false)
+                    
+                    frame.getContentPane().add(panelHome,BorderLayout.NORTH);
+                    frame.getContentPane().add(new JLabel(boostExplanation)); // adds boost explanation image
+                } else { // on lose screen (cont = false, gameStarted = true)
+                    frame.getContentPane().add(panelScore, BorderLayout.NORTH);
+                    frame.getContentPane().add(panelPlay, BorderLayout.CENTER); 
+                    frame.getContentPane().add(panelEffects, BorderLayout.SOUTH);
+                    loseScreen();
+                }  
+                frame.revalidate();
+                frame.repaint();
+            }
+        });
+
+    }
+
 
     // initializes GridPanels to keep track of SquarePanel graphics
     public static void initGridPanels() {
@@ -726,6 +968,24 @@ public class SnakeRunner {
 
 
     }
+
+
+
+    // pulls up the settings panel
+    public static void openSettings(){
+
+        frame.getContentPane().removeAll();
+        settingsRow4.removeAll();
+        settingsRow4.add(new JLabel("Wins  |  "));
+        settingsRow4.add(new JLabel("Player 1: " + snake1Wins));
+        settingsRow4.add(new JLabel("    Player 2: " + snake2Wins));
+        frame.getContentPane().add(panelSettings, BorderLayout.NORTH);
+        frame.revalidate();
+        frame.repaint();
+
+    }
+
+
 
     // updates individual SquarePanels in the grid
     public static void updateCell(int x, int y) {
@@ -793,7 +1053,7 @@ public class SnakeRunner {
                 }  
                
             } 
-        } else if (x == (int)fruit.getX() && y == (int)fruit.getY()) { // has fruit
+        } else if (cell.getHasFruit()) { // has fruit
             panel.setImage(cellWidth, cellHeight, bgColor, f);
             
         } else if (cell.getCurrBoost()!=null){ // has a boost
@@ -875,7 +1135,6 @@ public class SnakeRunner {
     }
 
     
-
     // every timer tick, move both snakes + update panels accordingly
     public static void runGame(){
         //long t0 = System.nanoTime();
@@ -890,7 +1149,8 @@ public class SnakeRunner {
                 gameTimer.stop();
                 snakeDeath.setFramePosition(0);
                 snakeDeath.start();
-                loseScreen(snake1); // send to lose screen
+                loserSnake = snake1;
+                loseScreen(); // send to lose screen
                 System.out.println("snake 1 loses");
 
             } else if (afterMoving == -1){ // head-on collision
@@ -898,23 +1158,25 @@ public class SnakeRunner {
                 gameTimer.stop();
                 snakeDeath.setFramePosition(0);
                 snakeDeath.start();
-                loseScreen(new Snake(-1,-1,new Color(255,255,255), Player.TIE));
+                loserSnake = new Snake(-1,-1,new Color(255,255,255), Player.TIE);
+                loseScreen();
                 System.out.println("Head-on collision");
 
             } else { // continue moving
                 cont = true;
                 checkBoost(snake1);
+                // check fruit + update score
+                int add = checkFruit(snake1);
+                if (add>0){
+                    snake1.setLength(snake1.getLength()+add);
+                    snake1.setScore(snake1.getScore()+add);
+                    updatePanelScore();
+                }
 
             }
             snake1.setSnakeMoved(true);
 
-            // check fruit + update score
-            int add = checkFruit(snake1);
-            if (add>0){
-                snake1.setLength(snake1.getLength()+add);
-                snake1.setScore(snake1.getScore()+add);
-                updatePanelScore();
-            }
+            
         }
 
         if (cont){
@@ -927,44 +1189,44 @@ public class SnakeRunner {
                 gameTimer.stop();
                 snakeDeath.setFramePosition(0);
                 snakeDeath.start();
-                loseScreen(snake2); // send to lose screen
+                loserSnake = snake2;
+                loseScreen(); // send to lose screen
                 System.out.println("snake 2 loses");
             } else if (afterMoving == -1){ // head-on collision
                 cont = false;
                 gameTimer.stop();
                 snakeDeath.setFramePosition(0);
                 snakeDeath.start();
-                loseScreen(new Snake(-1,-1,new Color(255,255,255), Player.TIE));
+                loserSnake = new Snake(-1,-1,new Color(255,255,255), Player.TIE);
+                loseScreen();
                 System.out.println("Head-on collision");
             } else { // continue moving
                 cont = true;
                 checkBoost(snake2);
+                // check fruit + update score
+                int add = checkFruit(snake2);
+                if (add>0){
+                    snake2.setLength(snake2.getLength()+add);
+                    snake2.setScore(snake2.getScore()+add);
+                    updatePanelScore();
+                }
 
             }
             snake2.setSnakeMoved(true);
 
-            // check fruit + update score
-            int add = checkFruit(snake2);
-            if (add>0){
-                snake2.setLength(snake2.getLength()+add);
-                snake2.setScore(snake2.getScore()+add);
-                updatePanelScore();
-            }
             
-
-
-
-
             
         }
-        spawnBoost();
+
+        if (settingsArr[3] || settingsArr[4] || settingsArr[5] || settingsArr[6] || settingsArr[7] || settingsArr[8])
+            spawnBoost();
+
+        if (settingsArr[2])
+            spawnFruit();
+        
         // update grid
         updateGrid();
-        
-
-        //long t1 = System.nanoTime();
-        //System.out.println("runGame tick took " + ((t1 - t0) / 1_000_000.0) + " ms");
-            
+    
 
     }
 
@@ -1125,201 +1387,17 @@ public class SnakeRunner {
     }
 
 
-
-
-    // checks if the snake goes out of bounds / crashes into itself / the other snake's head
-    // -1 = head-on collision
-    // 0 = other crash
-    // 1 = nothing
-    public static int checkSnake(Snake snake){
-    
-        int x = (int)snake.getHead().getX();
-        int y = (int)snake.getHead().getY();   
-        
-        // out of bounds
-        if (x < 0 || x >= gridX || y < 0 || y >= gridY) {
-            snake.setDirection(-1);
-            System.out.println("Game over. " + snake.getPlayer() + " is out of bounds.");
-            return 0;
-        }
-        
-        // crashes into a snake segment
-        if (grid[y][x].getOccupyingSnake()!=null){
-
-            //head-on collision
-            if (grid[y][x].getSegment() == 0){
-                System.out.println(snake.getPlayer() + " had a head-on collision with the other player.");
-                return -1;
-            }
-           
-            System.out.println("Crashed into snake at head coords " + x + ", " + y);
-            return 0;
-        }
-
-       
-        return 1;
-        
-    }
-
-
-    // if snake eats a fruit, return scoreBoost
-    // else, return 0
-    public static int checkFruit(Snake snake){
-
-        if((int)snake.getHead().getY()==(int)fruit.getY() && (int)snake.getHead().getX()==(int)fruit.getX()){ // fruit has been eaten
-           
-            new Thread(() -> {
-                fruitEaten.setFramePosition(0);
-                fruitEaten.start();
-            }).start();
-           
-            // spawn a new fruit
-            fruit = spawnPoint();
-          
-            return snake.getScoreBoost();  
-            
-        } else { // no fruit eaten
-            return 0;    
-        }
-    }
-
-
-    // spawns a boost randomly on the board
-    public static void spawnBoost(){
-    
-       
-        int generate = (int)(Math.random()*boostSpawnChance);
-        
-        // 1/100 chance of spawning a boost
-        if (generate==0){
-        
-            int currType = (int)(Math.random()*6);
-            
-            
-            // effects:
-            // 0 = reset effects
-            // 1 = speed boost
-            // 2 = slowness
-            // 3 = invisibility
-            // 4 = key input switch
-            // 5 = wipe boosts from board
-            
-            new Thread(() -> {
-                boostSpawned.setFramePosition(0);
-                boostSpawned.start();
-            }).start();
-            
-            
-                            
-            // put the boost on the grid
-            Point boostPt = spawnPoint();
-            grid[(int)boostPt.getY()][(int)boostPt.getX()].setCurrBoost(new Boost(currType));
-
-        
-        }  
-            
-        
-   
-    }
-    
-    
-    // if snake encounters a boost, change necessary game variables and wipe boost from GridSquare 
-    public static void checkBoost(Snake snake){
-
-        Boost currBoost = grid[(int)snake.getHead().getY()][(int)snake.getHead().getX()].getCurrBoost();
-        grid[(int)snake.getHead().getY()][(int)snake.getHead().getX()].setCurrBoost(null);
-    
-        if (currBoost != null){
-            new Thread(() -> {
-                boostObtained.setFramePosition(0);
-                boostObtained.start();
-            }).start();
-            
-
-            if (currBoost.getType() == 0){ // reset effects
-                
-                boostArr = new int[boostArr.length];
-                snakeSpeed = GameVar.snakeSpeed;
-                steps = (int)(GameVar.animStepSpeed*GameVar.timerDelay/snakeSpeed);
-                System.out.println("resetting boost effects");
-
-            } else if (currBoost.getType() == 1){ // speed
-              
-                boostArr[0]++;
-                // increase snakeSpeed + update animationSteps
-                snakeSpeed = GameVar.snakeSpeed * Math.pow(2, boostArr[0]);
-                steps = (int)(GameVar.animStepSpeed*GameVar.timerDelay/snakeSpeed);
-
-                System.out.println("speeding up. snakeSpeed: " + snakeSpeed);
-            
-            } else if (currBoost.getType() == 2){ // slowness
- 
-                // decrease snakeSpeed + update animationSteps
-                if (boostArr[0] >= -1){
-                    boostArr[0]--;
-                    snakeSpeed = GameVar.snakeSpeed * Math.pow(2, boostArr[0]);
-                    steps = (int)(GameVar.animStepSpeed*GameVar.timerDelay/snakeSpeed);
-                }
-
-                System.out.println("slowing down. snakeSpeed: " + snakeSpeed);
-
-            } else if (currBoost.getType() == 3){ // invisibility
-     
-                boostArr[1] = 1 - boostArr[1];
-                System.out.println("Toggling invis");
-   
-            } else if (currBoost.getType() == 4){ // direction switch
-           
-                boostArr[2] = 1 - boostArr[2];
-                System.out.println("Toggling input flip");
-            
-            } else if (currBoost.getType() == 5){  // wipe all boosts from board
-                System.out.println("wiping boosts from board");
-                for (int y = 0; y < grid.length; y++) {
-                    for (int x = 0; x < grid[0].length; x++) {
-                        grid[y][x].setCurrBoost(null);
-                    }
-                }
-
-            }
-            updatePanelEffects();
-
-        }     
-    
-    }
-    
-    
-
-
-    // spawns a new fruit / boost on the board
-    public static Point spawnPoint(){
-      
-        int x = (int)(gridX*Math.random());
-        int y = (int)(gridY*Math.random());         
-        
-        // if the new point doesn't overlap with a boost/fruit/snake, return the point
-        // otherwise, try again
-        if(grid[y][x].getOccupyingSnake()==null && !(x==(int)fruit.getX() && y==(int)fruit.getY()) && grid[y][x].getCurrBoost()==null){
-
-            return new Point(x,y);
-            
-        } else {
-            return spawnPoint();
-        }
-    }
-
-
     // used in the case of game over
-    public static void loseScreen(Snake snake){
+    public static void loseScreen(){
 
-        if (playMusic){
+        if (settingsArr[1]){
             bgMusic.stop();
         }
 
-        if (snake.getPlayer().equals(Player.PLAYER_1)){
+        if (loserSnake.getPlayer().equals(Player.PLAYER_1)){
             renderLose(1);
             
-        } else if (snake.getPlayer().equals(Player.PLAYER_2)){
+        } else if (loserSnake.getPlayer().equals(Player.PLAYER_2)){
             renderLose(2);
         } else {
             renderLose(0);
@@ -1349,49 +1427,13 @@ public class SnakeRunner {
 
         panelScore.removeAll();
         panelLost.removeAll();
-
-         
         panelLost.add(buttonReplay);
+        panelLost.add(buttonSettings);
 
         // load game button
         //panelLost.add(buttonLoad);
         
-        // toggle music button
-        JButton button3 = new JButton();
-        
-        if (playMusic){
-            button3.setIcon(yesMusic);
-        } else {
-            button3.setIcon(noMusic);
-        }
-        
-        button3.setPreferredSize(smallButtonDimensions);
-        button3.setFocusable(false);
-       
-        button3.addActionListener(new ActionListener(){
-            @Override
-            public void actionPerformed(ActionEvent e){
-            
-                // play sound when clicked
-                buttonClick.setFramePosition(0);
-                buttonClick.start();
-               
-                if (playMusic){
-                    playMusic = false;
-                    button3.setIcon(noMusic);
-                
-                } else {
-                    
-                    playMusic = true;
-                    button3.setIcon(yesMusic);
-                                  
-                }
-            }
-        });
-
-        panelLost.add(button3);
-        panelLost.add(buttonKeySounds); // toggle key sounds button
-
+  
         // close button
         buttonClose.setPreferredSize(smallButtonDimensions);
         panelLost.add(buttonClose);
@@ -1429,9 +1471,14 @@ public class SnakeRunner {
             winnerLabel.setText("TIE");
         } else if (snake1.getScore() > snake2.getScore()){
             winnerLabel.setText("PLAYER 1 WINS");
+            if (!winnerAlreadyDecided)
+                snake1Wins++;
         } else {
             winnerLabel.setText("PLAYER 2 WINS");
+            if (!winnerAlreadyDecided)
+                snake2Wins++;
         }
+        winnerAlreadyDecided = true;
         panelScore.add(winnerLabel);
         
         // final scores
@@ -1446,32 +1493,17 @@ public class SnakeRunner {
     // resets the game when button2 is pressed
     public static void resetGame() {
         
-        if (playMusic){
+        if (settingsArr[1]){
             bgMusic.setFramePosition(0);
             bgMusic.start();
             bgMusic.loop(Clip.LOOP_CONTINUOUSLY);
         }
 
-        snake1.startGameStats();
-        snake2.startGameStats();
-    
-    
         // resetting variables
         resetVariables();
         
         cont = true;
       
-
-        // resetting grid
-        for (int y = 0; y < gridY; y++) {
-            for (int x = 0; x < gridX; x++) {
-                grid[y][x].setOccupyingSnake(null);
-                grid[y][x].setSegment(0);
-                grid[y][x].setCurrBoost(null);
-            }
-        }
-        grid[snake1.getStartY()][snake1.getStartX()].setOccupyingSnake(snake1);
-        grid[snake2.getStartY()][snake2.getStartX()].setOccupyingSnake(snake2);
 
         // reset the frame graphics
         panelScore.removeAll();
@@ -1484,6 +1516,241 @@ public class SnakeRunner {
       
 
         
+    }
+
+
+    // checks if the snake goes out of bounds / crashes into itself / the other snake's head
+    // -1 = head-on collision
+    // 0 = other crash
+    // 1 = nothing
+    public static int checkSnake(Snake snake){
+    
+        int x = (int)snake.getHead().getX();
+        int y = (int)snake.getHead().getY();   
+        
+        // out of bounds
+        if (x < 0 || x >= gridX || y < 0 || y >= gridY) {
+            snake.setDirection(-1);
+            System.out.println("Game over. " + snake.getPlayer() + " is out of bounds.");
+            return 0;
+        }
+        
+        // crashes into a snake segment
+        if (grid[y][x].getOccupyingSnake()!=null){
+
+            //head-on collision
+            if (grid[y][x].getSegment() == 0){
+                System.out.println(snake.getPlayer() + " had a head-on collision with the other player.");
+                return -1;
+            }
+           
+            System.out.println("Crashed into snake at head coords " + x + ", " + y);
+            return 0;
+        }
+
+       
+        return 1;
+        
+    }
+
+    // spawns a fruit randomly on the board
+    public static void spawnFruit(){
+
+       
+        int generate = (int)(Math.random()*fruitSpawnChance);
+
+        // 1/100 chance of spawning a fruit in continuous fruit mode
+        if (!settingsArr[2] || generate==0){
+        
+            if (settingsArr[2]){ // only play a sound in continuous fruit mode
+                new Thread(() -> {
+                    boostSpawned.setFramePosition(0);
+                    boostSpawned.start();
+                }).start();
+            }
+            
+            // put the fruit on the grid
+            Point fruitPt = spawnPoint();
+            grid[(int)fruitPt.getY()][(int)fruitPt.getX()].setFruit(true);
+        
+        }  
+        
+            
+
+    }
+
+
+    // if snake eats a fruit, return scoreBoost
+    // else, return 0
+    public static int checkFruit(Snake snake){
+
+        if (grid[(int)snake.getHead().getY()][(int)snake.getHead().getX()].getHasFruit()){ // if head overlaps with fruit grid, fruit has been eaten
+
+            new Thread(() -> { // play fruit eaten sound
+                fruitEaten.setFramePosition(0);
+                fruitEaten.start();
+            }).start();
+
+            grid[(int)snake.getHead().getY()][(int)snake.getHead().getX()].setFruit(false);
+
+            if (!settingsArr[2]){ // if only one fruit can spawn at a time, spawn a fruit immediately
+                spawnFruit();
+            }
+
+            return snake.getScoreBoost();  
+
+
+        } else {
+            return 0;
+        }
+
+        /*
+        if((int)snake.getHead().getY()==(int)fruit.getY() && (int)snake.getHead().getX()==(int)fruit.getX()){ // fruit has been eaten
+           
+            new Thread(() -> {
+                fruitEaten.setFramePosition(0);
+                fruitEaten.start();
+            }).start();
+           
+            if (!settingsArr[2])
+                // spawn a new fruit immediately
+                //fruit = spawnPoint();
+          
+
+
+
+
+            return snake.getScoreBoost();  
+            
+        } else { // no fruit eaten
+            return 0;    
+        }*/
+    }
+
+    // spawns a boost randomly on the board
+    public static void spawnBoost(){
+    
+       
+        int generate = (int)(Math.random()*boostSpawnChance);
+        
+        // 1/100 chance of spawning a boost
+        if (generate==0){
+        
+            int currType = (int)(Math.random()*6);
+
+            while (!settingsArr[currType+3]){ // while the boost is not one enabled in the settings
+                currType = (int)(Math.random()*6);
+            }
+            
+            // effects:
+            // 0 = reset effects
+            // 1 = speed boost
+            // 2 = slowness
+            // 3 = invisibility
+            // 4 = key input switch
+            // 5 = wipe boosts from board
+            
+            new Thread(() -> {
+                boostSpawned.setFramePosition(0);
+                boostSpawned.start();
+            }).start();
+            
+            
+                            
+            // put the boost on the grid
+            Point boostPt = spawnPoint();
+            grid[(int)boostPt.getY()][(int)boostPt.getX()].setCurrBoost(new Boost(currType));
+        
+
+        
+        }  
+            
+        
+   
+    }
+    
+    
+    // if snake encounters a boost, change necessary game variables and wipe boost from GridSquare 
+    public static void checkBoost(Snake snake){
+
+        Boost currBoost = grid[(int)snake.getHead().getY()][(int)snake.getHead().getX()].getCurrBoost();
+        grid[(int)snake.getHead().getY()][(int)snake.getHead().getX()].setCurrBoost(null);
+    
+        if (currBoost != null){
+            new Thread(() -> {
+                boostObtained.setFramePosition(0);
+                boostObtained.start();
+            }).start();
+            
+
+            if (currBoost.getType() == 0){ // reset effects
+                
+                boostArr = new int[boostArr.length];
+                snakeSpeed = GameVar.snakeSpeed;
+                steps = (int)(GameVar.animStepSpeed*GameVar.timerDelay/snakeSpeed);
+                System.out.println("resetting boost effects");
+
+            } else if (currBoost.getType() == 1){ // speed
+
+                // increase snakeSpeed + update animationSteps
+                if (boostArr[0] <= 2){
+                    boostArr[0]++;
+                    snakeSpeed = GameVar.snakeSpeed * Math.pow(2, boostArr[0]);
+                    steps = (int)(GameVar.animStepSpeed*GameVar.timerDelay/snakeSpeed);
+                }
+            
+            } else if (currBoost.getType() == 2){ // slowness
+ 
+                // decrease snakeSpeed + update animationSteps
+                if (boostArr[0] >= -1){
+                    boostArr[0]--;
+                    snakeSpeed = GameVar.snakeSpeed * Math.pow(2, boostArr[0]);
+                    steps = (int)(GameVar.animStepSpeed*GameVar.timerDelay/snakeSpeed);
+                }
+
+
+            } else if (currBoost.getType() == 3){ // invisibility
+     
+                boostArr[1] = 1 - boostArr[1];
+                System.out.println("Toggling invis");
+   
+            } else if (currBoost.getType() == 4){ // direction switch
+           
+                boostArr[2] = 1 - boostArr[2];
+                System.out.println("Toggling input flip");
+            
+            } else if (currBoost.getType() == 5){  // wipe all boosts from board
+                System.out.println("wiping boosts from board");
+                for (int y = 0; y < grid.length; y++) {
+                    for (int x = 0; x < grid[0].length; x++) {
+                        grid[y][x].setCurrBoost(null);
+                    }
+                }
+
+            }
+            updatePanelEffects();
+            renderGrid();
+            panelPlay.repaint();
+
+        }     
+    
+    }
+
+    // spawns a new fruit / boost on the board
+    public static Point spawnPoint(){
+      
+        int x = (int)(gridX*Math.random());
+        int y = (int)(gridY*Math.random());         
+        
+        // if the new point doesn't overlap with a boost/fruit/snake, return the point
+        // otherwise, try again
+        if(grid[y][x].getOccupyingSnake()==null && !grid[y][x].getHasFruit() && grid[y][x].getCurrBoost()==null){
+
+            return new Point(x,y);
+            
+        } else {
+            return spawnPoint();
+        }
     }
 
     // buffers sounds that are fed into the method
@@ -1531,18 +1798,36 @@ public class SnakeRunner {
         loadSave = new ImageIcon(new ImageIcon("loadSave.png").getImage().getScaledInstance(50, 50,Image.SCALE_SMOOTH));
 
         closeWindow = new ImageIcon(new ImageIcon("closeWindow.png").getImage().getScaledInstance(50, 50,Image.SCALE_SMOOTH));
+        settings = new ImageIcon(new ImageIcon("settings.png").getImage().getScaledInstance(50,50,Image.SCALE_SMOOTH));
+        back = new ImageIcon(new ImageIcon("back.png").getImage().getScaledInstance(50,50,Image.SCALE_SMOOTH));
 
         boostExplanation = new ImageIcon(new ImageIcon("boostExplanation.png").getImage().getScaledInstance(400, 260,Image.SCALE_SMOOTH));
+        
+        toggleAppleSpawn = new ImageIcon(new ImageIcon("appleSpawn.png").getImage().getScaledInstance(50, 50,Image.SCALE_SMOOTH));
+        oneApple = new ImageIcon(new ImageIcon("oneApple.png").getImage().getScaledInstance(50,50,Image.SCALE_SMOOTH));
+
 
         f = new ImageIcon(new ImageIcon("fruit.png").getImage().getScaledInstance(cellWidth, cellHeight, Image.SCALE_SMOOTH));
         next = new ImageIcon(new ImageIcon("next.png").getImage().getScaledInstance(cellWidth, cellHeight,Image.SCALE_SMOOTH));
+        nextGray = new ImageIcon(GrayFilter.createDisabledImage(next.getImage()));
+
         b0 = new ImageIcon(new ImageIcon("boost0.png").getImage().getScaledInstance(cellWidth, cellHeight,Image.SCALE_SMOOTH));
+        b0Gray = new ImageIcon(GrayFilter.createDisabledImage(b0.getImage()));
+
         b1 = new ImageIcon(new ImageIcon("boost1.png").getImage().getScaledInstance(cellWidth, cellHeight,Image.SCALE_SMOOTH));
+        b1Gray = new ImageIcon(GrayFilter.createDisabledImage(b1.getImage()));
+
         X2= new ImageIcon(new ImageIcon("2multiplier.png").getImage().getScaledInstance(cellWidth, cellHeight,Image.SCALE_SMOOTH));
 
         b2 = new ImageIcon(new ImageIcon("boost2.png").getImage().getScaledInstance(cellWidth, cellHeight,Image.SCALE_SMOOTH));
+        b2Gray = new ImageIcon(GrayFilter.createDisabledImage(b2.getImage()));
+
         b3 = new ImageIcon(new ImageIcon("transparency.png").getImage().getScaledInstance(cellWidth, cellHeight,Image.SCALE_SMOOTH));
+        b3Gray = new ImageIcon(GrayFilter.createDisabledImage(b3.getImage()));
+
         b4 = new ImageIcon(new ImageIcon("directionSwitch.png").getImage().getScaledInstance(cellWidth, cellHeight,Image.SCALE_SMOOTH));
+        b4Gray = new ImageIcon(GrayFilter.createDisabledImage(b4.getImage()));
+
         X5 = new ImageIcon(new ImageIcon("5multiplier.png").getImage().getScaledInstance(cellWidth, cellHeight,Image.SCALE_SMOOTH));
 
         yesMusic = new ImageIcon(new ImageIcon("yesMusic.png").getImage().getScaledInstance(50, 50,Image.SCALE_SMOOTH));

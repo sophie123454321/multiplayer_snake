@@ -10,7 +10,7 @@ public class GridSquare{
     private Snake occupyingSnake;
     private int segment;
     private boolean hadSnake;
-    private boolean hasBoost;
+    private boolean hasFruit;
     private Boost currBoost;
 
     // constructor
@@ -21,11 +21,19 @@ public class GridSquare{
         occupyingSnake = null;
         segment = 0;
         hadSnake = false;
+        hasFruit = false;
         currBoost = null;
 
     }
 
     // methods
+    public void setFruit(boolean b){
+        hasFruit = b;
+    }
+    
+    public boolean getHasFruit(){
+        return hasFruit;
+    }
 
     public void setCurrBoost(Boost b){
         currBoost = b;
