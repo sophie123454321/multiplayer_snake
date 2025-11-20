@@ -41,7 +41,7 @@ public class SnakeRunner {
     private static JPanel settingsRow2;
     private static JPanel settingsRow3;
     private static JPanel settingsRow4;
-    private static JPanel panelPlay;
+    private static GamePanel panelPlay;
     private static JPanel panelLost;
     private static JPanel panelScore;
     private static JPanel panelEffects;
@@ -119,8 +119,6 @@ public class SnakeRunner {
     private static boolean gameStarted;
     private static Timer gameTimer;
     private static double snakeSpeed; // ticks / second
-    private static final int targetFPS = 60;
-    private static final long frameTime = 1000 / targetFPS; // ~16 ms per frame
 
     // game logic
     private static final int gridX = 15;
@@ -207,6 +205,11 @@ public class SnakeRunner {
     }
 */
     public static void resetVariables(){
+
+        // cell dimensions are 40x40 px
+        cellWidth = frameDimensions.width / (gridX);
+        cellHeight = (frameDimensions.height-panelDimensions.height*2) / (gridY);     
+
         winnerAlreadyDecided = false;
         gameStarted = GameVar.gameStarted;
         boostArr = new int[3];
@@ -214,7 +217,9 @@ public class SnakeRunner {
         steps = (int)(GameVar.animStepSpeed*GameVar.timerDelay/snakeSpeed);
 
         snake1 = new Snake(1,5,defaultSnake1,Player.PLAYER_1);
-        snake2 = new Snake(1, 10, defaultSnake2,Player.PLAYER_2);       
+        snake2 = new Snake(1, 10, defaultSnake2,Player.PLAYER_2);  
+
+        
 
         // creating the grid
         grid = new GridSquare[gridY][gridX];
@@ -240,6 +245,7 @@ public class SnakeRunner {
         settingsArr = new boolean[9];
         for (int i = 0; i < settingsArr.length; i++)
             settingsArr[i] = true;
+
         
        
         loadSounds();
@@ -676,7 +682,9 @@ public class SnakeRunner {
 
 
         // creating panelPlay
-        panelPlay = new JPanel();
+        panelPlay = new GamePanel();
+        panelPlay.setPreferredSize(new Dimension(frameDimensions.width, frameDimensions.height-panelDimensions.height*2));
+       
         
 
     }
@@ -932,22 +940,25 @@ public class SnakeRunner {
     // initializes GridPanels to keep track of SquarePanel graphics
     public static void initGridPanels() {
         gridPanels = new SquarePanel[gridY][gridX];
-        panelPlay.removeAll();
-        panelPlay.setLayout(new GridLayout(gridY, gridX));
+        //panelPlay.removeAll();
+        //panelPlay.setLayout(new GridLayout(gridY, gridX));
 
         for (int y = 0; y < gridY; y++) {
             for (int x = 0; x < gridX; x++) {
                 Color bgColor = (x % 2 == y % 2) ? darkSquare : lightSquare;
-                SquarePanel square = new SquarePanel(cellWidth, cellHeight, bgColor);
+                SquarePanel square = new SquarePanel(bgColor);
                 gridPanels[y][x] = square;
-                panelPlay.add(square);
+                //panelPlay.add(square);
             }
         }
+        panelPlay.updateGrid(gridPanels);
     }
 
     // initializes the frame and puts panels in place
     public static void initFrame(){
+
         // removes everthing and adds updated panels in
+        frame.setSize((int)(frameDimensions.getWidth() + frame.getInsets().left + frame.getInsets().right), (int)(frameDimensions.getHeight() + frame.getInsets().top + frame.getInsets().bottom)); // adjust for insets
         frame.getContentPane().removeAll();
 
         updatePanelScore();
@@ -960,6 +971,8 @@ public class SnakeRunner {
         frame.revalidate();
         frame.repaint();
 
+       
+        
         // requests focus again
         SwingUtilities.invokeLater(() -> {
             frame.setFocusable(true);
@@ -1004,7 +1017,7 @@ public class SnakeRunner {
                 snakeColor = s.getActualColor();
             }
             if (grid[y][x].getSegment() == 0){ // has a head
-                panel.setHead(cellWidth, cellHeight, s.getDirection(), (int)(s.getMoveStep()*steps*snakeSpeed), snakeSpeed, bgColor, snakeColor);
+                panel.setHead(s.getDirection(), (int)(s.getMoveStep()*steps*snakeSpeed), snakeSpeed, bgColor, snakeColor);
             } else {                   
                
                 //checking surrounding tiles for snake segments
@@ -1044,17 +1057,17 @@ public class SnakeRunner {
                 // rendering the tail
                 if (currSegment == s.getLength()-1){
 
-                    panel.setTail(cellWidth, cellHeight, up, right, down, left, (int)(s.getMoveStep()*steps*snakeSpeed), snakeSpeed, bgColor, snakeColor, true);
+                    panel.setTail(up, right, down, left, (int)(s.getMoveStep()*steps*snakeSpeed), snakeSpeed, bgColor, snakeColor, true);
 
 
                 // rendering the body segments   
                 } else {  
-                    panel.setBody(cellWidth, cellHeight, up, right, down, left, bgColor, snakeColor);
+                    panel.setBody(up, right, down, left, bgColor, snakeColor);
                 }  
                
             } 
         } else if (cell.getHasFruit()) { // has fruit
-            panel.setImage(cellWidth, cellHeight, bgColor, f);
+            panel.setImage(bgColor, f);
             
         } else if (cell.getCurrBoost()!=null){ // has a boost
 
@@ -1076,12 +1089,12 @@ public class SnakeRunner {
                 boostImage = null;
             }
 
-            panel.setImage(cellWidth, cellHeight, bgColor, boostImage);
+            panel.setImage(bgColor, boostImage);
         } else {
-            panel.setEmpty(cellWidth, cellHeight, bgColor);
+            panel.setEmpty(bgColor);
         }
         
-        panel.repaint();
+        //panel.repaint();
     }
 
     // updates only the grid containing the head, segment after the head, tail, and square after the tail
@@ -1130,7 +1143,8 @@ public class SnakeRunner {
             renderMovingPanels();
         }
 
-        panelPlay.repaint(); 
+        //panelPlay.updateGrid(gridPanels); 
+        panelPlay.repaint();
         
     }
 
@@ -1787,8 +1801,7 @@ public class SnakeRunner {
     // initializes images
     public static void loadImages(){
 
-        cellWidth = frame.getWidth() / (gridX);
-        cellHeight = (frame.getHeight()-100) / (gridY);
+        
         
         playGame = new ImageIcon(new ImageIcon("playGame.png").getImage().getScaledInstance(50, 50,Image.SCALE_SMOOTH));
         resetGame = new ImageIcon(new ImageIcon("resetGame.png").getImage().getScaledInstance(50, 50,Image.SCALE_SMOOTH));
